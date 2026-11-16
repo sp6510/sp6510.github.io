@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Цепочка слов</title>
+<style>
+:root{--bg:#faf7f2;--fg:#1f1b16;--mut:#7a7066;--card:#fff;--acc:#d9622b;--ok:#2f8f5b;--bd:#e5ddd2;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#17140f;--fg:#f3ede4;--mut:#a39a8e;--card:#241f19;--acc:#ef7d45;--ok:#3aa56c;--bd:#3a332a}}
+:root[data-theme="dark"]{--bg:#17140f;--fg:#f3ede4;--mut:#a39a8e;--card:#241f19;--acc:#ef7d45;--ok:#3aa56c;--bd:#3a332a}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;min-height:100%;display:flex;flex-direction:column;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+h1{text-align:center;margin:28px 16px 0;font-size:clamp(28px,7vw,44px);letter-spacing:-.5px}
+main{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:16px;text-align:center}
+button{font:inherit;font-weight:600;border:0;border-radius:14px;background:var(--acc);color:#fff;padding:14px 28px;font-size:18px;cursor:pointer}
+button:disabled{opacity:.5}
+.sec{background:var(--card);color:var(--fg);border:1px solid var(--bd);padding:10px 16px;font-size:15px}
+.w{display:flex;gap:6px;justify-content:center}
+.t{width:clamp(44px,14vw,64px);aspect-ratio:1;display:grid;place-items:center;border:2px solid var(--bd);border-radius:12px;background:var(--card);font-size:clamp(24px,8vw,36px);font-weight:700;text-transform:uppercase}
+.t.ok{background:var(--ok);border-color:var(--ok);color:#fff}
+.sm .t{width:34px;font-size:18px;border-radius:8px}
+.mut{color:var(--mut);font-size:15px}
+input{font:inherit;font-size:20px;text-align:center;text-transform:uppercase;width:150px;padding:10px;border-radius:12px;border:2px solid var(--bd);background:var(--card);color:var(--fg)}
+.row{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:center}
+.err{color:#d23b3b;min-height:20px;font-size:15px}
+.hist{max-width:100%;overflow-x:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:center}
+.big{font-size:22px;font-weight:700}
+</style></head><body>
+<h1>Цепочка слов</h1>
+<main id="app"></main>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+const WORDS=new Set(`арка аист айва ария база балл бант банк бард барс баня беда блок бобр брак брат бриз брод буря бюст боль баян байт борт бык
+вата вена вера взор вила вина вкус вода воин враг врач вред вино вход вилы
+гном гора горб горн град гриб гроб груз губа гусь гимн гонг грот
+дама даль дань двор дело день дерн долг доля дуга дура дыня дюна дача дочь доза дата джем дичь диск друг дуэт душа дуло
+ежик жгут жест жила жито жуть жара жало
+заря звон звук зима змея знак зной зубр зонт зола зять
+игла игра идея изба икра ирис итог
+кадр кайф каша кеды клад клей клуб клык кнут коза кожа кора корм корт краб край крен крик кров круг куст куча коса карп клоп ковш кино курс
+лава лайм лама лень лето лист лиса лифт лицо ложа ложь лось луна лупа лужа лыжа лыко лапа лоза липа лира лайк
+март мать матч мель меню мера мета метр мина миля мост мука муха мыло мышь мясо мочь моль маяк мода море мрак мята мгла
+наст нива ниша нога нора нота ночь нрав нить ноль
+обед овца овес окно отец
+пара парк пень перо плед плен плот плуг плюс пляж поле полк порт пост поэт пояс пруд пила пиво пика пирс пион печь поза пуля пуск пыль
+раки рама рана река роза рожь роль рота руда руль рысь рейс ряса роса рука рыло
+сайт сало сани свет сено сеть сила сито слон слог слух смех снег спор срок стая стан стол стул стон стук стог стык сова сода соль соло село сказ суть суша скат свод смог соус спад
+танк тара тень тигр тина толк торт тост трап трос труд трус туча тюль тело тема темп тест титр тент такт трюк туша тяга
+узел улей урна утро уха ухо угол удар урок утка упор урон
+факт фара фига флаг флот фонд фото фунт форт фея фаза
+хата хлеб хлам холм храм хвоя
+цель цена цепь цирк цвет цинк
+чаша чело чудо чары часы
+шарф шаль шанс шест шина шило шкаф шлем шея шуба штат штык
+щека щель щука
+эпос этаж
+юбка юмор юнга юрта
+язык ярус ясли ящик яхта`.split(/\s+/).filter(w=>w.length===4));
+const L=[...WORDS];
+const diff=(a,b)=>{let n=0;for(let i=0;i<4;i++)if(a[i]!==b[i])n++;return n};
+const ADJ={};for(const w of L)ADJ[w]=[];
+for(let i=0;i<L.length;i++)for(let j=i+1;j<L.length;j++)if(diff(L[i],L[j])===1){ADJ[L[i]].push(L[j]);ADJ[L[j]].push(L[i])}
+function puzzle(){
+  for(let k=0;k<200;k++){
+    const s=L[Math.floor(Math.random()*L.length)],d={[s]:0},q=[s];
+    for(let i=0;i<q.length;i++)for(const n of ADJ[q[i]])if(!(n in d)){d[n]=d[q[i]]+1;q.push(n)}
+    const c=q.filter(w=>d[w]>=3&&d[w]<=5);
+    if(c.length)return[s,c[Math.floor(Math.random()*c.length)]];
+  }
+  return["стул","стол"];
+}
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const tiles=(w,t,cls="")=>`<div class="w ${cls}">${[...w].map((c,i)=>`<div class="t${t&&t[i]===c?" ok":""}">${esc(c)}</div>`).join("")}</div>`;
+const app=document.getElementById("app");
+let peer=null,conn=null,G=null,role="",full=false;
+const other=r=>r==="a"?"b":"a";
+const fresh=()=>{const[s,t]=puzzle();return{start:s,target:t,cur:s,hist:[s],turn:"a",win:"",joined:false}};
+const rnd=()=>Math.random().toString(36).slice(2,10);
+const sync=()=>{if(conn&&conn.open)conn.send({t:"state",g:G})};
+
+function home(err){
+  app.innerHTML=`<button id="mk">Создать игру</button><div class="err">${esc(err||"")}</div>`;
+  document.getElementById("mk").onclick=startHost;
+}
+function startHost(){
+  if(typeof Peer==="undefined")return home("Не удалось загрузить PeerJS. Проверьте интернет.");
+  document.getElementById("mk").disabled=true;
+  peer=new Peer("wc"+rnd());
+  peer.on("open",id=>{role="a";G=fresh();location.hash=id;show()});
+  peer.on("connection",c=>{
+    if(conn&&conn.open){const f=()=>{c.send({t:"full"});setTimeout(()=>c.close(),300)};c.open?f():c.on("open",f);return}
+    conn=c;
+    const ready=()=>{G.joined=true;sync();show()};
+    c.open?ready():c.on("open",ready);
+    c.on("data",d=>{if(!d)return;if(d.t==="move")apply("b",String(d.w));else if(d.t==="again"&&G.win)restart()});
+    c.on("close",()=>{if(conn===c){conn=null;G.joined=false;show()}});
+  });
+  peer.on("error",e=>home("Ошибка соединения: "+e.type));
+}
+function join(h){
+  app.innerHTML='<div class="mut">Подключаемся…</div>';
+  peer=new Peer();
+  const t=setTimeout(()=>{app.innerHTML='<div class="mut">Не удалось подключиться. Попросите друга открыть игру заново.</div>'},15000);
+  peer.on("open",()=>{
+    conn=peer.connect(h,{reliable:true});
+    conn.on("data",d=>{if(!d)return;clearTimeout(t);
+      if(d.t==="state"&&d.g&&Array.isArray(d.g.hist)){role="b";G=d.g;show()}
+      else if(d.t==="full"){full=true;app.innerHTML='<div class="mut">В этой игре уже два игрока.</div>'}});
+    conn.on("close",()=>{if(!full)app.innerHTML='<div class="mut">Соединение потеряно. Откройте ссылку заново.</div>'});
+  });
+  peer.on("error",e=>{clearTimeout(t);app.innerHTML=`<div class="mut">${e.type==="peer-unavailable"?"Игра не найдена — возможно, друг закрыл страницу.":"Ошибка соединения."}</div>`});
+}
+function show(){
+  let h=`<div class="mut">Превратите слово в слово</div>
+  <div class="row" style="gap:14px">${tiles(G.start,"","sm")}<span class="big">→</span>${tiles(G.target,"","sm")}</div>`;
+  if(!G.joined){
+    h+=`<div class="mut">Отправьте другу ссылку-приглашение:</div>
+    <div class="row"><input id="lk" readonly value="${esc(location.href)}" style="width:min(320px,80vw);text-transform:none;font-size:15px"><button class="sec" id="cp">Копировать</button></div>
+    <div class="mut">Ждём второго игрока… Не закрывайте эту страницу.</div>`;
+  }else{
+    h+=tiles(G.cur,G.target);
+    if(G.win)h+=`<div class="big">${G.win===role?"Вы победили! 🎉":"Друг выиграл"}</div><button id="again">Новая игра</button>`;
+    else if(G.turn===role)h+=`<div class="big">Ваш ход</div>
+      <div class="mut">Измените ровно одну букву — получится настоящее слово</div>
+      <div class="row"><input id="nw" maxlength="4" autocomplete="off" autocapitalize="off"><button id="go">Ходить</button></div>
+      <div class="err" id="er"></div>`;
+    else h+=`<div class="big">Ход друга…</div>`;
+    h+=`<div class="hist">${G.hist.map((w,i)=>(i?'<span class="mut">→</span>':"")+`<span class="mut">${esc(w)}</span>`).join("")}</div>`;
+  }
+  app.innerHTML=h;
+  const cp=document.getElementById("cp");
+  if(cp)cp.onclick=()=>{const i=document.getElementById("lk");i.select();try{navigator.clipboard.writeText(i.value)}catch(e){}cp.textContent="Скопировано"};
+  const go=document.getElementById("go");
+  if(go){const nw=document.getElementById("nw");nw.focus();go.onclick=()=>move(nw.value);nw.onkeydown=e=>{if(e.key==="Enter")go.click()}}
+  const ag=document.getElementById("again");
+  if(ag)ag.onclick=()=>role==="a"?restart():conn.send({t:"again"});
+}
+function check(w,r){
+  if(G.win||G.turn!==r)return"Сейчас не ваш ход";
+  if(w.length!==4)return"Нужно слово из 4 букв";
+  if(!WORDS.has(w))return"Такого слова нет в словаре";
+  if(diff(w,G.cur)!==1)return"Нужно изменить ровно одну букву";
+  if(G.hist.includes(w))return"Это слово уже было";
+  return"";
+}
+const norm=v=>v.trim().toLowerCase().replace(/ё/g,"е");
+function move(v){
+  const w=norm(v),e=check(w,role);
+  if(e){document.getElementById("er").textContent=e;return}
+  if(role==="a")apply("a",w);else conn.send({t:"move",w});
+}
+function apply(r,v){
+  const w=norm(v);
+  if(check(w,r))return;
+  G.cur=w;G.hist.push(w);G.turn=other(r);G.win=w===G.target?r:"";
+  sync();show();
+}
+function restart(){const j=G.joined;G=fresh();G.joined=j;sync();show()}
+const h0=location.hash.slice(1);
+h0?join(h0):home("");
+</script></body></html>
