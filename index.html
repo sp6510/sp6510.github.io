@@ -26,7 +26,6 @@ input{font:inherit;font-size:20px;text-align:center;text-transform:uppercase;wid
 </style></head><body>
 <h1>Цепочка слов</h1>
 <main id="app"></main>
-<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script>
 const WORDS=new Set(`арка аист айва ария база балл бант банк бард барс баня беда блок бобр брак брат бриз брод буря бюст боль баян байт борт бык
 вата вена вера взор вила вина вкус вода воин враг врач вред вино вход вилы
@@ -70,43 +69,53 @@ function puzzle(){
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const tiles=(w,t,cls="")=>`<div class="w ${cls}">${[...w].map((c,i)=>`<div class="t${t&&t[i]===c?" ok":""}">${esc(c)}</div>`).join("")}</div>`;
 const app=document.getElementById("app");
-let peer=null,conn=null,G=null,role="",full=false;
+const BASE="https://ntfy.sh/";
+let topic="",me="",role="",G=null,guest="",full=false,got=false,tries=0,timer=null;
 const other=r=>r==="a"?"b":"a";
 const fresh=()=>{const[s,t]=puzzle();return{start:s,target:t,cur:s,hist:[s],turn:"a",win:"",joined:false}};
 const rnd=()=>Math.random().toString(36).slice(2,10);
-const sync=()=>{if(conn&&conn.open)conn.send({t:"state",g:G})};
-
+me=rnd()+rnd();
+const send=m=>fetch(BASE+topic,{method:"POST",body:JSON.stringify({...m,from:me})}).catch(()=>{});
+const pub=()=>{if(guest)send({t:"state",to:guest,g:G})};
+const noServer='Не удалось связаться с сервером ntfy.sh. Возможно, он недоступен в вашей сети.';
+function listen(onmsg,onopen,onfail){
+  const es=new EventSource(BASE+topic+"/sse");
+  let ok=false;
+  const t=setTimeout(()=>{if(!ok)onfail()},10000);
+  es.onopen=()=>{ok=true;clearTimeout(t);onopen()};
+  es.onmessage=e=>{try{const j=JSON.parse(e.data);if(j.event!=="message")return;const m=JSON.parse(j.message);if(m&&m.from!==me)onmsg(m)}catch(_){}};
+}
 function home(err){
   app.innerHTML=`<button id="mk">Создать игру</button><div class="err">${esc(err||"")}</div>`;
   document.getElementById("mk").onclick=startHost;
 }
 function startHost(){
-  if(typeof Peer==="undefined")return home("Не удалось загрузить PeerJS. Проверьте интернет.");
-  document.getElementById("mk").disabled=true;
-  peer=new Peer("wc"+rnd());
-  peer.on("open",id=>{role="a";G=fresh();location.hash=id;show()});
-  peer.on("connection",c=>{
-    if(conn&&conn.open){const f=()=>{c.send({t:"full"});setTimeout(()=>c.close(),300)};c.open?f():c.on("open",f);return}
-    conn=c;
-    const ready=()=>{G.joined=true;sync();show()};
-    c.open?ready():c.on("open",ready);
-    c.on("data",d=>{if(!d)return;if(d.t==="move")apply("b",String(d.w));else if(d.t==="again"&&G.win)restart()});
-    c.on("close",()=>{if(conn===c){conn=null;G.joined=false;show()}});
-  });
-  peer.on("error",e=>home("Ошибка соединения: "+e.type));
+  app.innerHTML='<div class="mut">Создаём игру…</div>';
+  topic="wc"+rnd()+rnd();role="a";G=fresh();guest="";
+  let shown=false;
+  listen(m=>{
+    if(m.t==="hello"){
+      if(!guest||guest===m.from){guest=m.from;G.joined=true;pub();show()}
+      else send({t:"full",to:m.from});
+    }else if(m.t==="move"&&m.from===guest)apply("b",String(m.w));
+    else if(m.t==="again"&&m.from===guest&&G.win)restart();
+  },()=>{if(!shown){shown=true;location.hash=topic;show()}},()=>home(noServer));
 }
 function join(h){
+  topic=h;role="b";
   app.innerHTML='<div class="mut">Подключаемся…</div>';
-  peer=new Peer();
-  const t=setTimeout(()=>{app.innerHTML='<div class="mut">Не удалось подключиться. Попросите друга открыть игру заново.</div>'},15000);
-  peer.on("open",()=>{
-    conn=peer.connect(h,{reliable:true});
-    conn.on("data",d=>{if(!d)return;clearTimeout(t);
-      if(d.t==="state"&&d.g&&Array.isArray(d.g.hist)){role="b";G=d.g;show()}
-      else if(d.t==="full"){full=true;app.innerHTML='<div class="mut">В этой игре уже два игрока.</div>'}});
-    conn.on("close",()=>{if(!full)app.innerHTML='<div class="mut">Соединение потеряно. Откройте ссылку заново.</div>'});
-  });
-  peer.on("error",e=>{clearTimeout(t);app.innerHTML=`<div class="mut">${e.type==="peer-unavailable"?"Игра не найдена — возможно, друг закрыл страницу.":"Ошибка соединения."}</div>`});
+  listen(m=>{
+    if(m.to!==me)return;
+    if(m.t==="state"&&m.g&&Array.isArray(m.g.hist)){got=true;clearTimeout(timer);G=m.g;show()}
+    else if(m.t==="full"){full=true;clearTimeout(timer);app.innerHTML='<div class="mut">В этой игре уже два игрока.</div>'}
+  },hello,()=>{app.innerHTML=`<div class="mut">${noServer}</div>`});
+}
+function hello(){
+  clearTimeout(timer);
+  if(full)return;
+  if(got){send({t:"hello"});return}
+  if(tries++>=6){app.innerHTML='<div class="mut">Хозяин игры не отвечает. Проверьте, что он не закрыл страницу, или попросите создать игру заново.</div>';return}
+  send({t:"hello"});timer=setTimeout(hello,4000);
 }
 function show(){
   let h=`<div class="mut">Превратите слово в слово</div>
@@ -131,7 +140,7 @@ function show(){
   const go=document.getElementById("go");
   if(go){const nw=document.getElementById("nw");nw.focus();go.onclick=()=>move(nw.value);nw.onkeydown=e=>{if(e.key==="Enter")go.click()}}
   const ag=document.getElementById("again");
-  if(ag)ag.onclick=()=>role==="a"?restart():conn.send({t:"again"});
+  if(ag)ag.onclick=()=>role==="a"?restart():send({t:"again"});
 }
 function check(w,r){
   if(G.win||G.turn!==r)return"Сейчас не ваш ход";
@@ -145,15 +154,15 @@ const norm=v=>v.trim().toLowerCase().replace(/ё/g,"е");
 function move(v){
   const w=norm(v),e=check(w,role);
   if(e){document.getElementById("er").textContent=e;return}
-  if(role==="a")apply("a",w);else conn.send({t:"move",w});
+  if(role==="a")apply("a",w);else send({t:"move",w});
 }
 function apply(r,v){
   const w=norm(v);
   if(check(w,r))return;
   G.cur=w;G.hist.push(w);G.turn=other(r);G.win=w===G.target?r:"";
-  sync();show();
+  pub();show();
 }
-function restart(){const j=G.joined;G=fresh();G.joined=j;sync();show()}
+function restart(){G=fresh();G.joined=!!guest;pub();show()}
 const h0=location.hash.slice(1);
 h0?join(h0):home("");
 </script></body></html>
